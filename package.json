@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "fernet": "^0.3.3",
+    "node-fetch": "^3.3.2",
+    "web3": "^4.16.0"
+  }
+}

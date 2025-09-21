@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafarSure | AI-Powered Tourist Safety</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyA_EweM3iX3m1S1ZFsHWnXQnqfjN5UJ2CU",
+    authDomain: "safarsure-d8531.firebaseapp.com",
+    databaseURL: "https://safarsure-d8531-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "safarsure-d8531",
+    storageBucket: "safarsure-d8531.firebasestorage.app",
+    messagingSenderId: "199980549222",
+    appId: "1:199980549222:web:f22d1e52016b0e907159a7",
+    measurementId: "G-XT5K3EJ02N"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+function renderTourists() {
+    const tbody = document.querySelector('#tourist-management-content tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400">Loading...</td></tr>';
+    const touristsRef = ref(db, "tourists");
+    onValue(touristsRef, (snapshot) => {
+        const data = snapshot.val();
+        tbody.innerHTML = '';
+        if (data) {
+            Object.values(data).forEach(tourist => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <p class="text-sm font-semibold text-gray-900">${tourist.fullName}</p>
+                            <p class="text-xs text-gray-500">${tourist.nationality}</p>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                <span class="text-sm text-gray-900">-</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Safe</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(tourist.registeredAt).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400">No tourists registered yet.</td></tr>';
+        }
+    });
+}
+
+window.showDashboardPage = (contentId) => {
+    const allDashboardContents = document.querySelectorAll('.dashboard-content');
+    allDashboardContents.forEach(content => {
+        content.classList.toggle('hidden', content.id !== contentId + '-content');
+    });
+    const allSidebarItems = document.querySelectorAll('.sidebar-item');
+    allSidebarItems.forEach(item => {
+        item.classList.toggle('active', item.getAttribute('onclick').includes(contentId));
+    });
+    if (contentId === 'live-map') {
+        setTimeout(() => {
+            initMap();
+        }, 300);
+    }
+    if (contentId === 'tourist-management') {
+        renderTourists();
+    }
+};
+
+window.showPage = (pageId) => {
+    const allPages = document.querySelectorAll('#home-page, #about-us-page, #registration-page, #authority-dashboard-page');
+    allPages.forEach(page => {
+        const isDashboard = pageId === 'authority-dashboard';
+        page.classList.toggle('hidden', page.id !== pageId + '-page');
+        page.classList.toggle('flex', !page.classList.contains('hidden'));
+        page.classList.toggle('flex-col', !isDashboard);
+        page.classList.toggle('md:flex-row', isDashboard);
+    });
+    if (pageId === 'authority-dashboard') {
+        showDashboardPage('live-map');
+    }
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Plan Trip Form
+    const tripForm = document.getElementById("tripForm");
+    if (tripForm) {
+        tripForm.addEventListener("submit", function(event) {
+            event.preventDefault();
+            const destination = document.getElementById("destination").value;
+            const days = document.getElementById("days").value;
+            const members = document.getElementById("members").value;
+            const tripsRef = ref(db, "trips");
+            const newTripRef = push(tripsRef);
+
+            set(newTripRef, {
+                destination,
+                days,
+                members,
+                timestamp: Date.now()
+            })
+            .then(() => {
+                Swal.fire({
+                    title: "🎉 Trip Planned!",
+                    html: `<p>Your trip details have been saved successfully.</p><p><b>Destination:</b> ${destination}<br><b>Days:</b> ${days}<br><b>Members:</b> ${members}</p><p>💳 Our AI will plan your trip efficiently after payment.</p>`,
+                    icon: "success",
+                    showCancelButton: true,
+                    confirmButtonText: "Proceed to Payment 💳",
+                    cancelButtonText: "Close",
+                    confirmButtonColor: "#0097a7",
+                    cancelButtonColor: "#888"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = "/payment.html";
+                    } else {
+                        tripForm.reset();
+                    }
+                });
+            })
+            .catch((error) => {
+                console.error("Error saving trip:", error);
+                Swal.fire("❌ Error", "Failed to save trip. Check console.", "error");
+            });
+        });
+    }
+
+    // SOS Button
+    const sosButton = document.getElementById('sos-button');
+    if (sosButton) {
+        sosButton.addEventListener('click', async () => {
+            let lat = null, lng = null;
+            if (navigator.geolocation) {
+                await new Promise(resolve => {
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            lat = pos.coords.latitude;
+                            lng = pos.coords.longitude;
+                            resolve();
+                        },
+                        () => resolve(),
+                        { enableHighAccuracy: true, timeout: 5000 }
+                    );
+                });
+            }
+            const alertsRef = ref(db, "alerts");
+            const newAlertRef = push(alertsRef);
+            await set(newAlertRef, {
+                type: "SOS",
+                timestamp: Date.now(),
+                lat,
+                lng
+            });
+
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'modal-overlay';
+            modalOverlay.innerHTML = `
+                <div class="modal-content">
+                    <h3 class="text-red-500">Emergency Alert Sent!</h3>
+                    <p>Nearby authorities have been notified and assistance is on the way.</p>
+                    <button id="modal-ok-btn">OK</button>
+                </div>
+            `;
+            document.body.appendChild(modalOverlay);
+            setTimeout(() => modalOverlay.classList.add('show'), 10);
+            document.getElementById('modal-ok-btn').addEventListener('click', () => {
+                modalOverlay.classList.remove('show');
+                setTimeout(() => modalOverlay.remove(), 300);
+            });
+        });
+    }
+
+    // Tourist Registration Form
+    const regForm = document.querySelector('#registration-page form');
+    if (regForm) {
+        regForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const fullName = regForm.fullName.value;
+            const passportId = regForm.passportId.value;
+            const nationality = regForm.nationality.value;
+            const emergencyContact = regForm.countryCode.value + regForm.phoneNumber.value;
+
+            const touristsRef = ref(db, "tourists");
+            const newTouristRef = push(touristsRef);
+
+            set(newTouristRef, {
+                fullName,
+                passportId,
+                nationality,
+                emergencyContact,
+                registeredAt: Date.now()
+            })
+            .then(() => {
+                Swal.fire("✅ Registered!", "Tourist registered successfully.", "success");
+                regForm.reset();
+                showPage('authority-dashboard');
+                showDashboardPage('tourist-management');
+            })
+            .catch((error) => {
+                console.error("Error registering tourist:", error);
+                Swal.fire("❌ Error", "Failed to register tourist.", "error");
+            });
+        });
+    }
+
+    // Incident Modal
+    const incidentBtn = document.querySelector("#incident-management-content button");
+    if (incidentBtn) {
+        incidentBtn.onclick = () => {
+            document.getElementById("incident-modal").classList.remove("hidden");
+            setTimeout(() => document.getElementById("incident-modal").classList.add("show"), 10);
+        };
+    }
+    const closeIncidentModalBtn = document.getElementById("closeIncidentModal");
+    if (closeIncidentModalBtn) {
+        closeIncidentModalBtn.onclick = () => {
+            document.getElementById("incident-modal").classList.remove("show");
+            setTimeout(() => document.getElementById("incident-modal").classList.add("hidden"), 300);
+        };
+    }
+    const incidentForm = document.getElementById("incidentForm");
+    if (incidentForm) {
+        incidentForm.addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const type = document.getElementById("incidentType").value;
+            const desc = document.getElementById("incidentDesc").value;
+            const location = document.getElementById("incidentLocation").value;
+            const severity = document.getElementById("incidentSeverity").value;
+
+            const incidentsRef = ref(db, "incidents");
+            await set(push(incidentsRef), {
+                type,
+                desc,
+                location,
+                severity,
+                timestamp: Date.now()
+            });
+
+            Swal.fire("✅ Incident Added!", "Incident has been logged.", "success");
+            incidentForm.reset();
+            document.getElementById("incident-modal").classList.remove("show");
+            setTimeout(() => document.getElementById("incident-modal").classList.add("hidden"), 300);
+        });
+    }
+
+    // Navigation
+    const touristRegLink = document.getElementById('tourist-reg-link');
+    if (touristRegLink) {
+        touristRegLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showPage('registration');
+        });
+    }
+    const aboutUsLink = document.getElementById('about-us-link');
+    if (aboutUsLink) {
+        aboutUsLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showPage('about-us');
+        });
+    }
+
+    // Initial page load
+    showPage('home');
+});
+</script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .bg-gradient-blue { background-image: linear-gradient(to right, #4a90e2, #50b0e5); }
+        .btn-shadow { box-shadow: 0 10px 20px rgba(74, 144, 226, 0.4); }
+        #sos-button {
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; width: 80px; height: 80px;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #ef4444; color: white; border-radius: 9999px;
+            font-size: 1.5rem; font-weight: bold; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease-in-out; border: none; cursor: pointer;
+        }
+        #sos-button:hover { transform: scale(1.05); }
+        @keyframes blink { 0%, 100% { background-color: #ef4444; } 50% { background-color: #b91c1c; } }
+        #sos-button.blinking { animation: blink 1.2s infinite; }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex;
+            justify-content: center; align-items: center; z-index: 2000;
+            opacity: 0; transition: opacity 0.3s ease-in-out;
+        }
+        .modal-overlay.show { opacity: 1; }
+        .modal-content {
+            background-color: white; padding: 2.5rem; border-radius: 1.5rem;
+            text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 90%; transform: scale(0.9); transition: transform 0.3s ease-in-out;
+        }
+        .modal-overlay.show .modal-content { transform: scale(1); }
+        .modal-content h3 { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-bottom: 0.5rem; }
+        .modal-content p { color: #4b5563; margin-bottom: 1.5rem; }
+        .modal-content button {
+            background-color: #4a90e2; color: white; font-weight: 600;
+            padding: 0.75rem 2rem; border-radius: 9999px; border: none;
+            cursor: pointer; transition: background-color 0.2s;
+        }
+        .modal-content button:hover { background-color: #386dbd; }
+        .hidden { display: none !important; }
+        .dashboard-container { min-height: calc(100vh - 8rem); }
+        .sidebar-item.active { background-color: #eff6ff; color: #2563eb; }
+        .slogan-container {
+            display: flex; justify-content: center; align-items: center;
+            gap: 1.5rem; font-family: Arial, sans-serif; font-size: 2.5rem;
+            font-weight: bold; color: #333;
+        }
+        .slogan-word { transition: transform 0.3s ease-in-out; }
+        .slogan-word:hover { transform: translateY(-5px); }
+        .safe { color: #0097a7; }
+        .smart { color: #0097a7; }
+        .sure { color: #0097a7; }
+        #map { width: 100%; min-height: 400px; height: 500px; }
+        .feature-card {
+    transition: transform 0.3s cubic-bezier(.4,0,.2,1), box-shadow 0.3s cubic-bezier(.4,0,.2,1);
+}
+.feature-card:hover {
+    transform: translateY(-5px) scale(1.03);
+    box-shadow: 0 16px 32px rgba(74,144,226,0.12), 0 4px 8px rgba(0,0,0,0.08);
+}
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
+
+    <nav class="w-full max-w-6xl flex justify-between items-center py-4 px-6 md:px-8 bg-white rounded-full shadow-lg mt-4 feature-card">
+        <div class="flex items-center space-x-2">
+            <!-- <svg class="h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15.5V11h2v6.5h-2zm-1-10.5h4V7h-4V4z"/>
+            </svg> -->
+            <img src="./Gemini_Generated_Image_tsowbtsowbtsowbt.png" alt="SafarSure Logo" style="height: 50px; width: 120px; object-fit: contain; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+            <h1 class="text-2xl font-bold text-gray-800">SafarSure</h1>
+            <span class="text-sm font-light text-gray-500 hidden md:inline">Monitoring & Incident Response System</span>
+        </div>
+        <div class="flex items-center space-x-4 text-gray-600 font-medium text-sm">
+            <a href="#" id="tourist-reg-link" class="hover:text-blue-600 transition-colors duration-300">Tourist Registration</a>
+            <a href="#" id="about-us-link" class="hover:text-blue-600 transition-colors duration-300">About Us</a>
+            <span class="hidden md:inline">|</span>
+            <span class="hidden md:inline">Prototype Demo</span>
+        </div>
+    </nav>
+
+    <div id="main-content" class="w-full max-w-6xl">
+
+        <section id="home-page" class="flex flex-col items-center text-center px-4 py-16">
+            <div class="space-y-4">
+                <h2 class="text-4xl md:text-5xl font-extrabold text-gray-800">
+                    🌍 SafarSure — <span class="text-blue-600">Smart AI-Powered Tourist Safety</span>
+                </h2>
+                <p class="text-base md:text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                    Ensuring worry-free travel through real-time monitoring, secure digital IDs, geo-fencing alerts, and instant emergency response — all powered by AI and blockchain.
+                </p>
+            </div>
+            <div>
+                <form id="tripForm" class="feature-card" style="width: 80%; max-width: 900px; margin: 30px auto; padding: 30px; border-radius: 16px; box-shadow: 0 6px 15px rgba(0,0,0,0.15); background: linear-gradient(135deg, #e0f7fa, #ffffff); font-family: 'Segoe UI', Tahoma, sans-serif;">
+                    <h2 style="text-align: center; color: #006064; margin-bottom: 15px; font-size: 28px;">
+                        🌍 Make Your <span style="color:#333;">SafarSure</span> With Us
+                    </h2>
+                    <h3 style="text-align: center; color: #004d40; margin-bottom: 30px; font-size: 22px;">
+                        ✈️ PLAN YOUR TRIP
+                    </h3>
+                    <label for="destination" style="font-weight: bold; color: #00796b;">Destination:</label>
+                    <input type="text" id="destination" name="destination" placeholder="Enter your destination" required style="width: 100%; padding: 12px; margin: 10px 0 20px; border: 2px solid #80cbc4; border-radius: 10px; font-size: 16px;">
+                    <label for="days" style="font-weight: bold; color: #00796b;">Total Days:</label>
+                    <input type="number" id="days" name="days" placeholder="Enter total days" min="1" required style="width: 100%; padding: 12px; margin: 10px 0 20px; border: 2px solid #80cbc4; border-radius: 10px; font-size: 16px;">
+                    <label for="members" style="font-weight: bold; color: #00796b;">Total Members:</label>
+                    <input type="number" id="members" name="members" placeholder="Enter total members" min="1" required style="width: 100%; padding: 12px; margin: 10px 0 30px; border: 2px solid #80cbc4; border-radius: 10px; font-size: 16px;">
+                    <button type="submit" style="display: block; width: 100%; padding: 15px; background: #0097a7; color: white; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                        🚀 Plan Trip
+                    </button>
+                </form>
+            </div>
+            <div class="slogan-container">
+                <span class="slogan-word safe">Safe</span>
+                <span class="slogan-word smart">Smart</span>
+                <span class="slogan-word sure">Sure</span>
+            </div>
+            <div class="mt-16 w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="feature-card bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600">
+                        <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-1v-4h-2V7h5v10zM15 17h-2v-4h-2V7h4v10z"/></svg>
+                    </div>
+                    <h3 class="mt-4 text-xl font-semibold text-gray-800">Your Secure Travel Pass</h3>
+                    <p class="mt-2 text-sm text-gray-500">Your digital identity and trip itinerary, all in one safe place.</p>
+                </div>
+                <div class="feature-card bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-red-100 text-red-600">
+                        <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-2h2v2h-2zm0-4v-6h2v6h-2z"/></svg>
+                    </div>
+                    <h3 class="mt-4 text-xl font-semibold text-gray-800">Always Watching Out</h3>
+                    <p class="mt-2 text-sm text-gray-500">Proactive alerts and smart monitoring for a worry-free journey.</p>
+                </div>
+                <div class="feature-card bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+                    <div class="flex items-center justify-center h-16 w-16 rounded-full bg-orange-100 text-orange-600">
+                        <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15.5V11h2v6.5h-2zm-1-10.5h4V7h-4V4z"/></svg>
+                    </div>
+                    <h3 class="mt-4 text-xl font-semibold text-gray-800">Help is One Tap Away</h3>
+                    <p class="mt-2 text-sm text-gray-500">Instant access to emergency services, whenever and wherever you are.</p>
+                </div>
+            </div>
+            <div class="mt-16 w-full text-center">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6">Experience the Prototype</h3>
+                <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
+                    <button onclick="showPage('authority-dashboard')" class="bg-blue-600 text-white font-semibold py-3 px-8 rounded-full transition-all duration-300 transform hover:scale-105 btn-shadow">
+                        Authority Dashboard
+                    </button>
+                    <a href="#" class="bg-white text-gray-800 font-semibold py-3 px-8 rounded-full border border-gray-300 transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
+                        Tourist App
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section id="about-us-page" class="hidden flex flex-col items-center justify-center min-h-screen text-center p-8 w-full">
+            <div class="max-w-2xl mx-auto space-y-6 flex flex-col items-center justify-center min-h-[60vh]">
+                <h1 class="text-4xl font-extrabold text-blue-600 mb-6">About SafarSure</h1>
+                <p class="text-lg text-gray-600 leading-relaxed text-center">
+                    SafarSure is a groundbreaking tourist safety platform built on the principles of blockchain, AI, and geo-fencing. Our mission is to provide a secure and reliable system that empowers tourists with a digital ID, real-time safety monitoring, and instant emergency response, while also equipping authorities with the tools to proactively manage and ensure visitor well-being.
+                </p>
+                <div class="mt-8">
+                    <button onclick="showPage('home')" class="bg-blue-600 text-white font-semibold py-3 px-8 rounded-full transition-all duration-300 transform hover:scale-105 hover:bg-blue-700 shadow-lg">
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="registration-page" class="hidden flex-col items-center justify-center min-h-screen p-4">
+            <div class="feature-card bg-white rounded-3xl shadow-2xl p-8 w-full max-w-xl text-center">
+                <button onclick="showPage('home')" class="absolute top-4 left-4 text-gray-500 hover:text-gray-700 transition-colors duration-200">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <div class="space-y-6">
+                    <h1 class="text-3xl font-extrabold text-blue-600">Tourist Registration</h1>
+                    <p class="text-sm text-gray-500">Enter your details to get a digital ID.</p>
+                    <form action="#" method="post" class="space-y-6 text-left">
+                        <div>
+                            <label for="fullName" class="block text-sm font-medium text-gray-700">Full Name</label>
+                            <input type="text" id="fullName" name="fullName" placeholder="John Doe" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="passportId" class="block text-sm font-medium text-gray-700">Passport / ID Number</label>
+                            <input type="text" id="passportId" name="passportId" placeholder="ID-12345678" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="nationality" class="block text-sm font-medium text-gray-700">Nationality</label>
+                            <input type="text" id="nationality" name="nationality" placeholder="Indian" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="emergencyContact" class="block text-sm font-medium text-gray-700">Emergency Contact Number</label>
+                            <div class="mt-1 flex space-x-2">
+                                <input type="text" id="countryCode" name="countryCode" placeholder="+91" class="w-1/4 px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="9876543210" class="w-3/4 px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div class="pt-4 text-center">
+                            <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg">
+                                Register
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section id="authority-dashboard-page" class="hidden w-full h-full p-4 md:flex flex-col md:flex-row md:space-x-4">
+            <div class="w-full md:w-64 bg-white rounded-3xl shadow-lg p-6 flex flex-col space-y-4 mb-4 md:mb-0">
+                <button onclick="showDashboardPage('overview')" class="sidebar-item active flex items-center space-x-2 p-3 rounded-xl transition-colors duration-200">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                    <span>Overview</span>
+                </button>
+                <button onclick="showDashboardPage('tourist-management')" class="sidebar-item flex items-center space-x-2 p-3 rounded-xl transition-colors duration-200 hover:bg-gray-100">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                    <span>Tourists</span>
+                </button>
+                <button onclick="showDashboardPage('incident-management')" class="sidebar-item flex items-center space-x-2 p-3 rounded-xl transition-colors duration-200 hover:bg-gray-100">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                    <span>Incidents</span>
+                </button>
+                <button onclick="showDashboardPage('live-map')" class="sidebar-item flex items-center space-x-2 p-3 rounded-xl transition-colors duration-200 hover:bg-gray-100">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+                    <span>Live Map</span>
+                </button>
+                <button onclick="showPage('home')" class="mt-auto flex items-center space-x-2 p-3 rounded-xl transition-colors duration-200 hover:bg-gray-100 text-gray-500">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    <span>Back</span>
+                </button>
+            </div>
+
+            <div id="dashboard-content-container" class="flex-1 bg-white rounded-3xl shadow-lg p-6">
+                <div id="overview-content" class="dashboard-content">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Overview</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-xl shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Active Tourists</p>
+                                <h3 class="text-2xl font-bold text-blue-600">3</h3>
+                            </div>
+                            <svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-xl shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Active Incidents</p>
+                                <h3 class="text-2xl font-bold text-red-600">1</h3>
+                            </div>
+                            <svg class="w-8 h-8 text-red-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-xl shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">Avg Safety Score</p>
+                                <h3 class="text-2xl font-bold text-green-600">88</h3>
+                            </div>
+                            <svg class="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2V7a5 5 0 00-5-5zm0 2a3 3 0 013 3v2H7V7a3 3 0 013-3zm-3 7h6v5H7v-5z"></path></svg>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-500">System Status</p>
+                                <h3 class="text-2xl font-bold text-gray-800">Operational</h3>
+                            </div>
+                            <svg class="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clip-rule="evenodd"></path></svg>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mt-8 mb-4">Recent Incidents</h3>
+                    <div class="space-y-4">
+                        <div class="bg-red-100 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-red-600 font-semibold">GEO FENCE</p>
+                                <p class="text-gray-800">Tourist entered restricted area near government building</p>
+                                <p class="text-xs text-gray-500 mt-1">Police Bazaar, Shillong - 16/09/2025, 14:55:13</p>
+                            </div>
+                            <span class="bg-yellow-400 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">MEDIUM</span>
+                        </div>
+                        <div class="bg-red-100 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-red-600 font-semibold">INACTIVITY</p>
+                                <p class="text-gray-800">No movement detected for 3 hours</p>
+                                <p class="text-xs text-gray-500 mt-1">Ward Lake Area - 16/09/2025, 14:55:14</p>
+                            </div>
+                            <span class="bg-red-400 text-red-800 text-xs font-bold px-2 py-1 rounded-full">HIGH</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tourist-management-content" class="dashboard-content hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Tourist Management</h2>
+                    <div class="w-full overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tourist</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Safety Score</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <p class="text-sm font-semibold text-gray-900">Akriti</p>
+                                        <p class="text-xs text-gray-500">Indian</p>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                            <span class="text-sm text-gray-900">98</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Safe</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">16/09/2025, 14:55:12</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button class="text-blue-600 hover:text-blue-900 mr-2">
+                                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.094 6.64 2 12 2s10.268 3.094 11.542 8c-1.274 4.906-6.182 8-11.542 8S1.732 14.906.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg>
+                                        </button>
+                                        <button class="text-blue-600 hover:text-blue-900">
+                                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.928.688l2.984 5.968c.094.188.134.4.113.614l-.071.354a1.135 1.135 0 00-.317.525.75.75 0 00-.197.697l.158.473c.093.27.142.553.142.844v.25a.75.75 0 00.75.75h4.25a.75.75 0 00.75-.75v-.25c0-.29-.049-.574-.142-.844l-.158-.473a.75.75 0 00.197-.697 1.135 1.135 0 00.317-.525l.071-.354a1 1 0 01.113-.614l2.984-5.968A1 1 0 0117.847 2H20a1 1 0 011 1v16a1 1 0 01-1 1H2a1 1 0 01-1-1V4a1 1 0 011-1z"></path></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <p class="text-sm font-semibold text-gray-900">Aarush Aanand</p>
+                                        <p class="text-xs text-gray-500">Indian</p>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                            <span class="text-sm text-gray-900">88</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Safe</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">16/09/2025, 14:55:12</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button class="text-blue-600 hover:text-blue-900 mr-2">
+                                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.094 6.64 2 12 2s10.268 3.094 11.542 8c-1.274 4.906-6.182 8-11.542 8S1.732 14.906.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg>
+                                        </button>
+                                        <button class="text-blue-600 hover:text-blue-900">
+                                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.928.688l2.984 5.968c.094.188.134.4.113.614l-.071.354a1.135 1.135 0 00-.317.525.75.75 0 00-.197.697l.158.473c.093.27.142.553.142.844v.25a.75.75 0 00.75.75h4.25a.75.75 0 00.75-.75v-.25c0-.29-.049-.574-.142-.844l-.158-.473a.75.75 0 00.197-.697 1.135 1.135 0 00.317-.525l.071-.354a1 1 0 01.113-.614l2.984-5.968A1 1 0 0117.847 2H20a1 1 0 011 1v16a1 1 0 01-1 1H2a1 1 0 01-1-1V4a1 1 0 011-1z"></path></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="incident-management-content" class="dashboard-content hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Incident Management</h2>
+                    <div class="flex justify-end mb-4">
+                        <button class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-300 hover:bg-blue-700">
+                            + New Incident
+                        </button>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-red-100 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-red-600 font-semibold">GEO FENCE</p>
+                                <p class="text-gray-800">Tourist entered restricted area near government building</p>
+                                <p class="text-xs text-gray-500 mt-1">Police Bazaar, Shillong - 16/09/2025, 14:55:13</p>
+                            </div>
+                            <span class="bg-yellow-400 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">INVESTIGATING</span>
+                        </div>
+                        <div class="bg-red-100 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-red-600 font-semibold">INACTIVITY</p>
+                                <p class="text-gray-800">No movement detected for 3 hours</p>
+                                <p class="text-xs text-gray-500 mt-1">Ward Lake Area - 16/09/2025, 14:55:14</p>
+                            </div>
+                            <span class="bg-red-400 text-red-800 text-xs font-bold px-2 py-1 rounded-full">ACTIVE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="live-map-content" class="dashboard-content hidden">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Live Tourist Safety Map</h2>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div id="map" class="w-full md:w-2/3 h-[500px] rounded-2xl overflow-hidden shadow-lg border border-gray-200"></div>
+                        <div class="flex-1 flex flex-col justify-center bg-gray-50 rounded-xl p-6 shadow-inner">
+                            <h3 class="text-xl font-semibold text-blue-600 mb-3">Tourist Safety Monitoring</h3>
+                            <p class="text-gray-600 leading-relaxed">
+                                This live map shows real-time tourist positions and SOS alerts. Authorities can track movement and respond faster.
+                            </p>
+                            <ul class="mt-4 text-sm text-gray-500 list-disc list-inside">
+                                <li>🟢 Safe Zone: Normal tourist activity</li>
+                                <li>🟡 Warning: Higher risk area</li>
+                                <li>🔴 Alert: Emergency incident reported</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <button id="sos-button" class="blinking">SOS</button>
+
+    <script>
+        let map, userMarker, userCircle;
+
+        // Leaflet map functions
+        function initMap() {
+            const mapElement = document.getElementById('map');
+            if (!mapElement) {
+                console.error("Map container with ID 'map' not found.");
+                return;
+            }
+            if (map) {
+                map.invalidateSize();
+                return;
+            }
+            map = L.map('map').setView([28.6139, 77.2090], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            map.locate({ setView: true, watch: true, maxZoom: 16 });
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
+        }
+
+        function onLocationFound(e) {
+            const { latlng, accuracy } = e;
+            if (userMarker) map.removeLayer(userMarker);
+            if (userCircle) map.removeLayer(userCircle);
+            userMarker = L.marker(latlng).addTo(map).bindPopup("You are here").openPopup();
+            userCircle = L.circle(latlng, { radius: accuracy }).addTo(map);
+        }
+
+        function onLocationError(e) {
+            alert("Location access denied or unavailable.");
+        }
+
+        // Global page switching functions
+        window.showPage = (pageId) => {
+            const allPages = document.querySelectorAll('#home-page, #about-us-page, #registration-page, #authority-dashboard-page');
+            allPages.forEach(page => {
+                const isDashboard = pageId === 'authority-dashboard';
+                page.classList.toggle('hidden', page.id !== pageId + '-page');
+                page.classList.toggle('flex', !page.classList.contains('hidden'));
+                page.classList.toggle('flex-col', !isDashboard);
+                page.classList.toggle('md:flex-row', isDashboard);
+            });
+            // Ensure the dashboard view is reset to a default content on show
+            if (pageId === 'authority-dashboard') {
+                showDashboardPage('live-map');
+            }
+        };
+
+        window.showDashboardPage = (contentId) => {
+            const allDashboardContents = document.querySelectorAll('.dashboard-content');
+            allDashboardContents.forEach(content => {
+                content.classList.toggle('hidden', content.id !== contentId + '-content');
+            });
+            const allSidebarItems = document.querySelectorAll('.sidebar-item');
+            allSidebarItems.forEach(item => {
+                item.classList.toggle('active', item.getAttribute('onclick').includes(contentId));
+            });
+            if (contentId === 'live-map') {
+                setTimeout(() => {
+                    initMap();
+                }, 300);
+            }
+        };
+
+        // DOMContentLoaded event listener
+        document.addEventListener('DOMContentLoaded', () => {
+            // Your other event listeners for navigation and SOS button
+            document.getElementById('tourist-reg-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage('registration');
+            });
+
+            document.getElementById('about-us-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage('about-us');
+            });
+
+            // Initial page load
+            showPage('home');
+        });
+    </script>
+    <!-- Add this modal just before </body> -->
+<div id="incident-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h3>Add New Incident</h3>
+        <form id="incidentForm" class="space-y-4">
+            <input type="text" id="incidentType" placeholder="Type (e.g. GEO FENCE, INACTIVITY)" class="w-full px-4 py-2 border rounded-xl" required>
+            <input type="text" id="incidentDesc" placeholder="Description" class="w-full px-4 py-2 border rounded-xl" required>
+            <input type="text" id="incidentLocation" placeholder="Location (e.g. Goa Beach)" class="w-full px-4 py-2 border rounded-xl" required>
+            <select id="incidentSeverity" class="w-full px-4 py-2 border rounded-xl" required>
+                <option value="">Severity</option>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+            </select>
+            <button type="submit" class="bg-blue-600 text-white py-2 px-6 rounded-full">Add Incident</button>
+            <button type="button" id="closeIncidentModal" class="bg-gray-300 text-gray-700 py-2 px-6 rounded-full ml-2">Cancel</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>
