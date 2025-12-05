@@ -17,7 +17,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebas
 import { getDatabase, ref, push, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyA_EweM3iX3m1S1ZFsHWnXQnqfjN5UJ2CU",
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: "safarsure-d8531.firebaseapp.com",
     databaseURL: "https://safarsure-d8531-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "safarsure-d8531",
